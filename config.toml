@@ -1,0 +1,20 @@
+[app]
+# directory to put log files, omit for no log files
+#logdir = "."
+
+[server]
+# host and port
+host = "localhost"
+port = 8001
+# ssl certificate paths, omit for regular http
+#ssl_key = "server-key.pem"
+#ssl_cert = "server.pem"
+
+[auth]
+# http basic authentication: username, followed by password hash
+# generate hash using: python -m pakhuis.auth
+localhost = "$pbkdf2-sha256$29000$QYhx7v2fM6a09t7bG2PMOQ$WXeYbOsx7soZkpZTqrlfHb0IZ1.LeM3kgCkHhqRIGmk"
+
+[database]
+# sqlite database file
+path = "pakhuis.db"

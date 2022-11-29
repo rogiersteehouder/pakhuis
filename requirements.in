@@ -1,0 +1,10 @@
+click
+uvicorn
+loguru
+starlette
+passlib
+pydantic
+jsonpointer
+jsonpatch
+# for python < 3.11
+tomli
