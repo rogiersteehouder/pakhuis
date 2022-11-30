@@ -1,0 +1,17 @@
+# Sync between two servers. It doesn't matter which one is first or second.
+
+[servers.first]
+# Recognizable name for prompts
+name = "localhost"
+# Pakhuis url
+url = "https://localhost:8001/"
+# Username on the server (will ask when omitted)
+username = "abc123"
+# Password for the server (will ask when omitted)
+# password = "abc123"
+
+[servers.second]
+name = "otherhost"
+url = "https://other:8001/"
+username = "def456"
+# password = "def456"

@@ -6,7 +6,7 @@ __date__ = "2022-11-20"
 __version__ = "1.0"
 
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 
 import pydantic
 from loguru import logger
@@ -46,7 +46,7 @@ class Config(pydantic.BaseModel):
         super().__init__(**kwargs)
 
     @classmethod
-    def parse_file(cls, cfg_file: Path) -> dict[str, Any]:
+    def parse_file(cls, cfg_file: Path) -> Dict[str, Any]:
         """Load config from toml file."""
         #self.Config._logger.info("Loading config from {}", cfg_file)
         #return tomllib.loads(cfg_file.read_text())

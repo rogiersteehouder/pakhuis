@@ -1,14 +1,14 @@
 [app]
 # directory to put log files, omit for no log files
-#logdir = "."
+logdir = "instance"
 
 [server]
 # host and port
 host = "localhost"
 port = 8001
 # ssl certificate paths, omit for regular http
-#ssl_key = "server-key.pem"
-#ssl_cert = "server.pem"
+#ssl_key = "instance/server-key.pem"
+#ssl_cert = "instance/server.pem"
 
 [auth]
 # http basic authentication: username, followed by password hash
@@ -17,4 +17,4 @@ localhost = "$pbkdf2-sha256$29000$QYhx7v2fM6a09t7bG2PMOQ$WXeYbOsx7soZkpZTqrlfHb0
 
 [database]
 # sqlite database file
-path = "pakhuis.db"
+path = "instance/pakhuis.db"

@@ -34,6 +34,8 @@ class Webservice:
         _bin = request.path_params["_bin"]
         if request.query_params.get("full"):
             result = self.db.get_items(_bin)
+            if request.query_params.get("index"):
+                result["_index"] = self.db.get_index(_bin)
         else:
             result = self.db.get_bin(_bin)
         return JSONResponse(result, status_code=200)
@@ -119,6 +121,11 @@ class Webservice:
         if content is database.NOTFOUND:
             raise HTTPException(404, "Item {} not found in {}".format(_id, _bin))
         self.db.del_item(_bin, _id)
+        return Response(None, status_code=204)
+
+    async def delete_bin(self, request: Request):
+        _bin = request.path_params["_bin"]
+        self.db.del_bin(_bin)
         return Response(None, status_code=204)
 
     async def doc_history(self, request: Request):

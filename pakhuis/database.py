@@ -11,7 +11,7 @@ import json
 import hashlib
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Tuple
 
 from jsonpointer import resolve_pointer
 from loguru import logger
@@ -40,14 +40,14 @@ class SearchWhere:
         ops.update(self.base_ops)
         self.ops = ops
 
-    def process(self, doc: dict) -> tuple[str, list]:
+    def process(self, doc: dict) -> Tuple[str, list]:
         where, params = self.op_and("", doc)
         if where:
             return (where, params)
         else:
             return ("", [])
 
-    def aggregate(self, agg: str, key: str, value: dict) -> tuple[str, list]:
+    def aggregate(self, agg: str, key: str, value: dict) -> Tuple[str, list]:
         if not isinstance(value, dict):
             raise ValueError()
         where = []
@@ -58,54 +58,54 @@ class SearchWhere:
             params.extend(p)
         return ("(\n{}\n)".format(f"\n{agg} ".join(where)), params)
 
-    def op_and(self, key: str, value: dict) -> tuple[str, list]:
+    def op_and(self, key: str, value: dict) -> Tuple[str, list]:
         return self.aggregate("and", key, value)
 
-    def op_or(self, key: str, value: dict) -> tuple[str, list]:
+    def op_or(self, key: str, value: dict) -> Tuple[str, list]:
         return self.aggregate("or", key, value)
 
-    def op_eq(self, key: str, value: Any) -> tuple[str, list]:
+    def op_eq(self, key: str, value: Any) -> Tuple[str, list]:
         return (
             f"exists (select 1 from {self.table_name} where BIN = {self.alias}BIN and ID = {self.alias}ID and KEY = ? and VALUE = ?)",
             [key, json.dumps(value)],
         )
 
-    def op_lt(self, key: str, value: Any) -> tuple[str, list]:
+    def op_lt(self, key: str, value: Any) -> Tuple[str, list]:
         return (
             f"exists (select 1 from {self.table_name} where BIN = {self.alias}BIN and ID = {self.alias}ID and KEY = ? and VALUE > ?)",
             [key, json.dumps(value)],
         )
 
-    def op_lte(self, key: str, value: Any) -> tuple[str, list]:
+    def op_lte(self, key: str, value: Any) -> Tuple[str, list]:
         return (
             f"exists (select 1 from {self.table_name} where BIN = {self.alias}BIN and ID = {self.alias}ID and KEY = ? and VALUE >= ?)",
             [key, json.dumps(value)],
         )
 
-    def op_gt(self, key: str, value: Any) -> tuple[str, list]:
+    def op_gt(self, key: str, value: Any) -> Tuple[str, list]:
         return (
             f"exists (select 1 from {self.table_name} where BIN = {self.alias}BIN and ID = {self.alias}ID and KEY = ? and VALUE < ?)",
             [key, json.dumps(value)],
         )
 
-    def op_gte(self, key: str, value: Any) -> tuple[str, list]:
+    def op_gte(self, key: str, value: Any) -> Tuple[str, list]:
         return (
             f"exists (select 1 from {self.table_name} where BIN = {self.alias}BIN and ID = {self.alias}ID and KEY = ? and VALUE <= ?)",
             [key, json.dumps(value)],
         )
 
-    def op_in_list(self, key: str, value: Any) -> tuple[str, list]:
+    def op_in_list(self, key: str, value: Any) -> Tuple[str, list]:
         # in_list is processed differently when generating the index, searching is the same as eq
         return self.op_eq(key, value)
 
-    def op_glob(self, key: str, value: Any) -> tuple[str, list]:
+    def op_glob(self, key: str, value: Any) -> Tuple[str, list]:
         # text search on value: assume string and remove leading and trailing quotes
         return (
             f"""exists (select 1 from {self.table_name} where BIN = {self.alias}BIN and ID = {self.alias}ID and KEY = ? and trim(VALUE, '"') glob ?)""",
             [key, value],
         )
 
-    def op_like(self, key: str, value: Any) -> tuple[str, list]:
+    def op_like(self, key: str, value: Any) -> Tuple[str, list]:
         # text search on value: assume string and remove leading and trailing quotes
         return (
             f"""exists (select 1 from {self.table_name} where BIN = {self.alias}BIN and ID = {self.alias}ID and KEY = ? and trim(VALUE, '"') like ?)""",
@@ -114,36 +114,33 @@ class SearchWhere:
 
 
 class Database:
-    _version = "1.1"
+    _version = (1, 1)
 
     def __init__(self, path: Path):
         self._logger = logger.bind(logtype="pakhuis.database")
         self.path = path
-        if not path.exists():
+        if not path.exists() or self.version() != self._version:
             self.init_db()
-        if self.version() != self._version:
-            self.upgrade_db()
         self.search_where = SearchWhere()
         self.bin_cfg: dict[str, dict] = {}
 
     def init_db(self):
         with sqlite3.connect(self.path) as conn:
-            conn.executescript(
-                """
-                begin;
-                create table CONFIG ("VERSION" text);
-                create table PAKHUIS ("BIN" text, "ID" text, "DTTM" text default CURRENT_TIMESTAMP, "STATUS" text default "A", "CONTENT" text);
-                create table SEARCH_KEYS ("BIN" text, "KEY" text, "PATH" text, "TYPE" text);
-                create table SEARCH_VALUES ("BIN" text, "KEY" text, "ID" text, "VALUE" text);
-                insert into CONFIG values('1.0');
-                commit;
-                """
-            )
-
-    def upgrade_db(self):
-        if self.version() == "1.0":
-            # 1.0 -> 1.1: bin config
-            with sqlite3.connect(self.path) as conn:
+            if self.version() < (1, 0):
+                conn.executescript(
+                    """
+                    begin;
+                    create table CONFIG ("VERSION" text);
+                    create table PAKHUIS ("BIN" text, "ID" text, "DTTM" text default CURRENT_TIMESTAMP, "STATUS" text default "A", "CONTENT" text);
+                    create table BIN_CONFIG ("BIN" text, "INCLUDE_ID" text default "N");
+                    create table SEARCH_KEYS ("BIN" text, "KEY" text, "PATH" text, "TYPE" text);
+                    create table SEARCH_VALUES ("BIN" text, "KEY" text, "ID" text, "VALUE" text);
+                    insert into CONFIG values('1.1');
+                    commit;
+                    """
+                )
+            if self.version() < (1, 1):
+                # 1.0 -> 1.1: bin config
                 conn.executescript(
                     """
                     begin;
@@ -158,9 +155,12 @@ class Database:
 
     def version(self) -> str:
         self._logger.debug("Get database version")
-        with sqlite3.connect(self.path) as conn:
-            for row in conn.execute("""select VERSION from CONFIG"""):
-                return row[0]
+        if not self.path.exists():
+            return (0, 0)
+        else:
+            with sqlite3.connect(self.path) as conn:
+                for row in conn.execute("""select VERSION from CONFIG"""):
+                    return tuple(int(x) for x in row[0].split("."))
 
     def _get_index_keys(self, conn: sqlite3.Connection, _bin: str) -> list:
         result = []
@@ -383,6 +383,14 @@ class Database:
                 (_bin, _id),
             )
             self._set_index_item(conn, _bin, _id, None)
+
+    def del_bin(self, _bin: str):
+        self._logger.debug("Delete {}", _bin)
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("""delete from PAKHUIS where BIN = ?""", (_bin,))
+            conn.execute("""delete from BIN_CONFIG where BIN = ?""", (_bin,))
+            conn.execute("""delete from SEARCH_KEYS where BIN = ?""", (_bin,))
+            conn.execute("""delete from SEARCH_VALUES where BIN = ?""", (_bin,))
 
     def sync_list(self, _bin: str = "") -> dict:
         self._logger.debug("Sync list for {}", _bin if _bin else "all")

@@ -31,7 +31,7 @@ async def json_error(request: Request, exc: HTTPException):
     )
 
 
-def make_app(cfg: Config, /, debug: bool = False) -> Starlette:
+def make_app(cfg: Config, debug: bool = False) -> Starlette:
     # webservice
     ws = webservice.Webservice(cfg)
 
@@ -40,6 +40,7 @@ def make_app(cfg: Config, /, debug: bool = False) -> Starlette:
         Route("/_ping", ws.ping, methods=["GET", "HEAD"]),
         Route("/_sync", ws.sync_list, methods=["GET"]),
         Route("/{_bin}", ws.bin, methods=["GET"]),
+        Route("/{_bin}", ws.delete_bin, methods=["DELETE"]),
         Route("/{_bin}", ws.doc, methods=["POST"]),
         Route("/{_bin}/_config", ws.bin_config, methods=["GET", "PUT"]),
         Route("/{_bin}/_index", ws.bin_index, methods=["GET", "PUT"]),
