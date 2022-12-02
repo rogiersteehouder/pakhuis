@@ -7,6 +7,7 @@ __author__ = "Rogier Steehouder"
 __date__ = "2022-11-28"
 __version__ = "1.1"
 
+import datetime
 import json
 import hashlib
 import sqlite3
@@ -159,8 +160,11 @@ class Database:
             return (0, 0)
         else:
             with sqlite3.connect(self.path) as conn:
-                for row in conn.execute("""select VERSION from CONFIG"""):
-                    return tuple(int(x) for x in row[0].split("."))
+                try:
+                    for row in conn.execute("""select VERSION from CONFIG"""):
+                        return tuple(int(x) for x in row[0].split("."))
+                except:
+                    return (0, 0)
 
     def _get_index_keys(self, conn: sqlite3.Connection, _bin: str) -> list:
         result = []
@@ -285,13 +289,19 @@ class Database:
             ):
                 self._set_index_item(conn, _bin, row[0], json.loads(row[1]))
 
-    def set_item(self, _bin: str, _id: str, content: Any):
+    def set_item(self, _bin: str, _id: str, content: Any, dttm: datetime.datetime = None):
         self._logger.debug("Set item {} in {}", _id, _bin)
         with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                """insert into PAKHUIS (BIN, ID, CONTENT) values (?, ?, ?)""",
-                (_bin, _id, json.dumps(content)),
-            )
+            if dttm is None:
+                conn.execute(
+                    """insert into PAKHUIS (BIN, ID, CONTENT) values (?, ?, ?)""",
+                    (_bin, _id, json.dumps(content)),
+                )
+            else:
+                conn.execute(
+                    """insert into PAKHUIS (BIN, ID, DTTM, CONTENT) values (?, ?, ?, ?)""",
+                    (_bin, _id, dttm, json.dumps(content)),
+                )
             self._set_index_item(conn, _bin, _id, content)
 
     def get_items(self, _bin: str):

@@ -5,6 +5,7 @@ __author__ = "Rogier Steehouder"
 __date__ = "2022-11-20"
 __version__ = "1.1"
 
+import datetime
 import uuid
 
 import jsonpatch
@@ -83,6 +84,9 @@ class Webservice:
     async def doc(self, request: Request):
         _bin = request.path_params["_bin"]
         _id = request.path_params.get("_id", "")
+        dttm = request.query_params.get("dttm", None)
+        if dttm:
+            dttm = datetime.datetime.fromisoformat(dttm)
         code = 200
 
         # add or overwrite
@@ -91,7 +95,7 @@ class Webservice:
             if not _id:
                 _id = str(uuid.uuid4())
             content = await request.json()
-            self.db.set_item(_bin, _id, content)
+            self.db.set_item(_bin, _id, content, dttm)
             code = 201
 
         # patch existing

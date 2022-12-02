@@ -65,10 +65,10 @@ class ServerSync:
             # copy missing items in total, skipping inactive items
             for _id in (first_items - second_items):
                 if first_content[_bin][_id]["active"]:
-                    self.copy_item(_bin, _id, first, second)
+                    self.copy_item(_bin, _id, first_content[_bin][_id]["dttm"], first, second)
             for _id in (second_items - first_items):
                 if second_content[_bin][_id]["active"]:
-                    self.copy_item(_bin, _id, second, first)
+                    self.copy_item(_bin, _id, second_content[_bin][_id]["dttm"], second, first)
 
             # compare items
             for _id in (first_items & second_items):
@@ -77,29 +77,33 @@ class ServerSync:
                     # copy last date/time to the other server
                     if first_content[_bin][_id]["dttm"] > second_content[_bin][_id]["dttm"]:
                         if first_content[_bin][_id]["active"]:
-                            self.copy_item(_bin, _id, first, second)
+                            self.copy_item(_bin, _id, first_content[_bin][_id]["dttm"], first, second)
                         else:
                             self.del_item(_bin, _id, second)
                     elif first_content[_bin][_id]["dttm"] < second_content[_bin][_id]["dttm"]:
                         if second_content[_bin][_id]["active"]:
-                            self.copy_item(_bin, _id, second, first)
+                            self.copy_item(_bin, _id, second_content[_bin][_id]["dttm"], second, first)
                         else:
                             self.del_item(_bin, _id, first)
 
     def copy_bin(self, _bin, from_server, to_server):
         logger.info(f"Copy bin {_bin} from {from_server['name']} to {to_server['name']}")
         bin_content = self.cli.get("{url}/{bin}".format(bin=_bin, **from_server), params={ "full": True, "index": True }, auth=(from_server["username"], from_server["password"])).json()
+        bin_sync = self.cli.get("{url}/{bin}/_sync".format(bin=_bin, **from_server), auth=(from_server["username"], from_server["password"])).json()
+
         url = "{url}/{bin}".format(bin=_bin, **to_server)
+
         content = bin_content.get("_index")
         if content:
             self.cli.put(f"{url}/_index", json=content, auth=(to_server["username"], to_server["password"]))
-        for _id, content in bin_content["items"].items():
-            self.cli.put(f"{url}/{_id}", json=content, auth=(to_server["username"], to_server["password"]))
 
-    def copy_item(self, _bin, _id, from_server, to_server):
+        for _id, content in bin_content["items"].items():
+            self.cli.put(f"{url}/{_id}", params={"dttm": bin_sync[_bin][_id]["dttm"]}, json=content, auth=(to_server["username"], to_server["password"]))
+
+    def copy_item(self, _bin, _id, dttm, from_server, to_server):
         logger.info(f"Copy item {_bin}/{_id} from {from_server['name']} to {to_server['name']}")
         content = self.cli.get("{url}/{bin}/{id}".format(bin=_bin, id=_id, **from_server), auth=(from_server["username"], from_server["password"])).json()
-        self.cli.put("{url}/{bin}/{id}".format(bin=_bin, id=_id, **to_server), json=content, auth=(to_server["username"], to_server["password"]))
+        self.cli.put("{url}/{bin}/{id}".format(bin=_bin, id=_id, **to_server), params={"dttm": dttm}, json=content, auth=(to_server["username"], to_server["password"]))
 
     def del_item(self, _bin, _id, server):
         logger.info(f"Delete item {_bin}/{_id} from {server['name']}")
