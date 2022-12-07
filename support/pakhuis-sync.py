@@ -11,8 +11,8 @@ It will create an index definition if the whole bin is copied.
 """
 
 __author__ = "Rogier Steehouder"
-__date__ = "2022-11-29"
-__version__ = "0.1"
+__date__ = "2022-12-06"
+__version__ = "0.2"
 
 import sys
 import getpass
@@ -42,72 +42,157 @@ class ServerSync:
         first = self.cfg["servers"]["first"]
         second = self.cfg["servers"]["second"]
 
-        first["url"] = first["url"].strip('/')
-        second["url"] = second["url"].strip('/')
+        first["url"] = first["url"].strip("/")
+        second["url"] = second["url"].strip("/")
 
-        first_content = self.cli.get(f"{first['url']}/_sync", auth=(first["username"], first["password"])).json()
-        second_content = self.cli.get(f"{second['url']}/_sync", auth=(second["username"], second["password"])).json()
+        first_content = self.cli.get(
+            f"{first['url']}/_sync", auth=(first["username"], first["password"])
+        ).json()
+        second_content = self.cli.get(
+            f"{second['url']}/_sync", auth=(second["username"], second["password"])
+        ).json()
 
         first_bins = set(first_content.keys())
         second_bins = set(second_content.keys())
 
         # copy missing bins in total
-        for _bin in (first_bins - second_bins):
+        for _bin in first_bins - second_bins:
             self.copy_bin(_bin, first, second)
-        for _bin in (second_bins - first_bins):
+        for _bin in second_bins - first_bins:
             self.copy_bin(_bin, second, first)
 
         # compare bins
-        for _bin in (first_bins & second_bins):
+        for _bin in first_bins & second_bins:
             first_items = set(first_content[_bin].keys())
             second_items = set(second_content[_bin].keys())
 
             # copy missing items in total, skipping inactive items
-            for _id in (first_items - second_items):
+            for _id in first_items - second_items:
                 if first_content[_bin][_id]["active"]:
-                    self.copy_item(_bin, _id, first_content[_bin][_id]["dttm"], first, second)
-            for _id in (second_items - first_items):
+                    self.copy_item(
+                        _bin, _id, first_content[_bin][_id]["dttm"], first, second
+                    )
+            for _id in second_items - first_items:
                 if second_content[_bin][_id]["active"]:
-                    self.copy_item(_bin, _id, second_content[_bin][_id]["dttm"], second, first)
+                    self.copy_item(
+                        _bin, _id, second_content[_bin][_id]["dttm"], second, first
+                    )
 
             # compare items
-            for _id in (first_items & second_items):
+            for _id in first_items & second_items:
                 # do not sync inactive items
-                if first_content[_bin][_id]["active"] or second_content[_bin][_id]["active"]:
+                if (
+                    first_content[_bin][_id]["active"]
+                    or second_content[_bin][_id]["active"]
+                ):
                     # copy last date/time to the other server
-                    if first_content[_bin][_id]["dttm"] > second_content[_bin][_id]["dttm"]:
+                    if (
+                        first_content[_bin][_id]["dttm"]
+                        > second_content[_bin][_id]["dttm"]
+                    ):
                         if first_content[_bin][_id]["active"]:
-                            self.copy_item(_bin, _id, first_content[_bin][_id]["dttm"], first, second)
+                            self.copy_item(
+                                _bin,
+                                _id,
+                                first_content[_bin][_id]["dttm"],
+                                first,
+                                second,
+                            )
                         else:
                             self.del_item(_bin, _id, second)
-                    elif first_content[_bin][_id]["dttm"] < second_content[_bin][_id]["dttm"]:
+                    elif (
+                        first_content[_bin][_id]["dttm"]
+                        < second_content[_bin][_id]["dttm"]
+                    ):
                         if second_content[_bin][_id]["active"]:
-                            self.copy_item(_bin, _id, second_content[_bin][_id]["dttm"], second, first)
+                            self.copy_item(
+                                _bin,
+                                _id,
+                                second_content[_bin][_id]["dttm"],
+                                second,
+                                first,
+                            )
                         else:
                             self.del_item(_bin, _id, first)
 
     def copy_bin(self, _bin, from_server, to_server):
-        logger.info(f"Copy bin {_bin} from {from_server['name']} to {to_server['name']}")
-        bin_content = self.cli.get("{url}/{bin}".format(bin=_bin, **from_server), params={ "full": True, "index": True }, auth=(from_server["username"], from_server["password"])).json()
-        bin_sync = self.cli.get("{url}/{bin}/_sync".format(bin=_bin, **from_server), auth=(from_server["username"], from_server["password"])).json()
+        logger.info(
+            f"Copy bin {_bin} from {from_server['name']} to {to_server['name']}"
+        )
+        bin_content = self.cli.get(
+            "{url}/{bin}".format(bin=_bin, **from_server),
+            params={"full": True, "index": True},
+            auth=(from_server["username"], from_server["password"]),
+        ).json()
+        bin_sync = self.cli.get(
+            "{url}/{bin}/_sync".format(bin=_bin, **from_server),
+            auth=(from_server["username"], from_server["password"]),
+        ).json()
 
         url = "{url}/{bin}".format(bin=_bin, **to_server)
 
         content = bin_content.get("_index")
         if content:
-            self.cli.put(f"{url}/_index", json=content, auth=(to_server["username"], to_server["password"]))
+            self.cli.put(
+                f"{url}/_index",
+                json=content,
+                auth=(to_server["username"], to_server["password"]),
+            )
 
         for _id, content in bin_content["items"].items():
-            self.cli.put(f"{url}/{_id}", params={"dttm": bin_sync[_bin][_id]["dttm"]}, json=content, auth=(to_server["username"], to_server["password"]))
+            self.cli.put(
+                f"{url}/{_id}",
+                params={"dttm": bin_sync[_bin][_id]["dttm"]},
+                json=content,
+                auth=(to_server["username"], to_server["password"]),
+            )
 
     def copy_item(self, _bin, _id, dttm, from_server, to_server):
-        logger.info(f"Copy item {_bin}/{_id} from {from_server['name']} to {to_server['name']}")
-        content = self.cli.get("{url}/{bin}/{id}".format(bin=_bin, id=_id, **from_server), auth=(from_server["username"], from_server["password"])).json()
-        self.cli.put("{url}/{bin}/{id}".format(bin=_bin, id=_id, **to_server), params={"dttm": dttm}, json=content, auth=(to_server["username"], to_server["password"]))
+        logger.info(
+            f"Copy item {_bin}/{_id} from {from_server['name']} to {to_server['name']}"
+        )
+        content = self.cli.get(
+            "{url}/{bin}/{id}".format(bin=_bin, id=_id, **from_server),
+            auth=(from_server["username"], from_server["password"]),
+        ).json()
+        self.cli.put(
+            "{url}/{bin}/{id}".format(bin=_bin, id=_id, **to_server),
+            params={"dttm": dttm},
+            json=content,
+            auth=(to_server["username"], to_server["password"]),
+        )
 
     def del_item(self, _bin, _id, server):
         logger.info(f"Delete item {_bin}/{_id} from {server['name']}")
-        self.cli.delete("{url}/{bin}/{id}".format(bin=_bin, id=_id, **server), auth=(server["username"], server["password"]))
+        self.cli.delete(
+            "{url}/{bin}/{id}".format(bin=_bin, id=_id, **server),
+            auth=(server["username"], server["password"]),
+        )
+
+
+def pwmgr_refresh(cfg, cli):
+    logger.info("Refreshing the pwmgr list.")
+    accounts = cli.get(
+        f"{cfg['url']}/pwmgr",
+        params={"full": True},
+        auth=(cfg["username"], cfg["password"]),
+    ).json()
+    acc_list = {}
+    old_list = None
+    for _id, content in accounts["items"].items():
+        if _id == "list":
+            old_list = content
+            continue
+        acc_list[_id] = {
+            "descr": "{service} ({username})".format_map(content),
+            "descrshort": content["service"],
+        }
+    if old_list != acc_list:
+        cli.put(
+            f"{cfg['url']}/pwmgr/list",
+            json=acc_list,
+            auth=(cfg["username"], cfg["password"]),
+        )
 
 
 # Click documentation: https://click.palletsprojects.com/
@@ -129,9 +214,15 @@ class ServerSync:
         path_type=pathlib.Path,
     ),
     default=pathlib.Path(__file__).with_suffix(".toml"),
-    help="""Config file"""
+    help="""Config file""",
 )
-def main(cfg_file, loglevel):
+@click.option(
+    "--list", "pwmgr_list", is_flag=True, default=False, help="""Only refresh pwmgr list"""
+)
+@click.option(
+    "--cleanup", is_flag=True, default=False, help="""Send cleanup command to both servers"""
+)
+def main(cfg_file, loglevel, pwmgr_list, cleanup):
     # loguru documentation: https://loguru.readthedocs.io/
     logger.remove()
     logger.add(
@@ -152,13 +243,17 @@ def main(cfg_file, loglevel):
         if "username" not in first:
             first["username"] = input("[{}] Username: ".format(first["name"]))
         if "password" not in first:
-            first["password"] = getpass.getpass("[{}@{}] Password: ".format(first["username"], first["name"]))
+            first["password"] = getpass.getpass(
+                "[{}@{}] Password: ".format(first["username"], first["name"])
+            )
 
-
-        if "username" not in second:
-            second["username"] = input("[{}] Username: ".format(second["name"]))
-        if "password" not in second:
-            second["password"] = getpass.getpass("[{}@{}] Password: ".format(second["username"], second["name"]))
+        if not pwmgr_list:
+            if "username" not in second:
+                second["username"] = input("[{}] Username: ".format(second["name"]))
+            if "password" not in second:
+                second["password"] = getpass.getpass(
+                    "[{}@{}] Password: ".format(second["username"], second["name"])
+                )
 
         # httpx documentation: https://www.python-httpx.org/
         with httpx.Client(
@@ -167,8 +262,19 @@ def main(cfg_file, loglevel):
             event_hooks={"response": [raise_for_status]},
         ) as cli:
 
-            s = ServerSync(cfg, cli)
-            s.run()
+            if not pwmgr_list:
+                s = ServerSync(cfg, cli)
+                s.run()
+
+            pwmgr_refresh(first, cli)
+
+            if cleanup:
+                for srv in (cfg["servers"]["first"], cfg["servers"]["second"]):
+                    cli.get(
+                        f"{srv['url']}/_cleanup",
+                        params={"days": 180},
+                        auth=(srv["username"], srv["password"]),
+                    )
 
         logger.success("Complete")
 

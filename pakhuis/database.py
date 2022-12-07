@@ -416,3 +416,23 @@ class Database:
                 bin_obj = result.setdefault(row[0], dict())
                 bin_obj[row[1]] = { "dttm": row[2], "active": (row[3] == 'A') }
         return result
+
+    def cleanup(self, _bin: str, dt: datetime.date) -> dict:
+        self._logger.debug("Cleanup items in {} before {:%Y-%m-%d}", _bin if _bin else "all", dt)
+        if _bin:
+            where = "P.BIN = ? and"
+            params = [_bin]
+        else:
+            where = ""
+            params = []
+        result = []
+        with sqlite3.connect(self.path) as conn:
+            # add items older than given date
+            for row in conn.execute(f"""select P.BIN, P.ID, P.DTTM from PAKHUIS P where {where} P.DTTM < ?""", params + [dt]):
+                result.append(list(row))
+            # remove items that are still active
+            for row in conn.execute(f"""select P.BIN, P.ID, P.DTTM from PAKHUIS P where {where} P.DTTM = (select max(DTTM) from PAKHUIS where BIN = P.BIN and ID = P.ID) and DTTM < ? and STATUS = 'A'""", params + [dt]):
+                result.remove(list(row))
+            # delete items
+            conn.executemany("""delete from PAKHUIS where BIN = ? and ID = ? and DTTM = ?""", result)
+            return { "count": len(result), "items": result }
