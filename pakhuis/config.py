@@ -1,10 +1,3 @@
-"""Configuration
-"""
-
-__author__ = "Rogier Steehouder"
-__date__ = "2022-11-20"
-__version__ = "1.0"
-
 from pathlib import Path
 from typing import Optional, Any, Dict
 
@@ -18,11 +11,6 @@ except ImportError:
     import tomli as tomllib
 
 
-class AppConfig(pydantic.BaseModel):
-    """Application config"""
-    logdir: Optional[Path] = None
-
-
 class ServerConfig(pydantic.BaseModel):
     """Server config"""
     host: str = "localhost"
@@ -31,28 +19,31 @@ class ServerConfig(pydantic.BaseModel):
     ssl_cert: Optional[Path] = None
 
 
-class DatabaseConfig(pydantic.BaseModel):
+class PoorthuisConfig(pydantic.BaseModel):
+    """Poorthuis config"""
+
+    accounts: dict = pydantic.Field(default_factory=dict)
+
+
+class PakhuisConfig(pydantic.BaseModel):
     """Database config"""
-    path: Path = Path("pakhuis.db")
+
+    database: str = "pakhuis.db"
 
 
 class Config(pydantic.BaseModel):
     """Main config"""
     def __init__(self, **kwargs):
-        if "logger" in kwargs and isinstance(kwargs["logger"], logger.__class__):
-            self.Config._logger = kwargs.pop("logger").bind(logtype="pakhuis.config")
-        else:
-            self.Config._logger = logger.bind(logtype="pakhuis.config")
         super().__init__(**kwargs)
 
     @classmethod
-    def parse_file(cls, cfg_file: Path) -> Dict[str, Any]:
+    def parse_file(cls, cfg_file: Path) -> "Config":
         """Load config from toml file."""
-        #self.Config._logger.info("Loading config from {}", cfg_file)
-        #return tomllib.loads(cfg_file.read_text())
-        return cls.parse_obj(tomllib.loads(cfg_file.read_text()))
+        obj = cls.parse_obj(tomllib.loads(cfg_file.read_text()))
+        obj.instance = cfg_file.parent
+        return obj
 
-    app: AppConfig = pydantic.Field(default_factory=AppConfig)
+    instance: Path = Path(".")
     server: ServerConfig = pydantic.Field(default_factory=ServerConfig)
-    auth: Optional[dict] = None
-    database: DatabaseConfig = pydantic.Field(default_factory=DatabaseConfig)
+    poorthuis: PoorthuisConfig = pydantic.Field(default_factory=PoorthuisConfig)
+    pakhuis: PakhuisConfig = pydantic.Field(default_factory=PakhuisConfig)

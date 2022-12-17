@@ -1,14 +1,11 @@
-#!/usr/bin/env python3
-# encoding: UTF-8
-
 """Pakhuis
 
 A json document storage service with limited search capability.
 """
 
 __author__ = "Rogier Steehouder"
-__date__ = "2022-11-28"
-__version__ = "1.1"
+__date__ = "2022-12-15"
+__version__ = "1.2"
 
 import sys
 import logging
@@ -18,7 +15,8 @@ import click
 import uvicorn
 from loguru import logger
 
-from . import make_app, Config
+from . import make_app
+from .config import Config
 
 
 class InterceptHandler(logging.Handler):
@@ -77,20 +75,19 @@ def main(loglevel: str, cfg_file: Path):
         cfg = Config.parse_file(cfg_file)
 
         # file log
-        if cfg.app.logdir:
-            if debug:
-                logfmt = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[logtype]: <12} | {name}:{function}:{line} - {message}"
-            else:
-                logfmt = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[logtype]: <12} | {message}"
-            logger.add(
-                cfg.app.logdir / (__package__ + "-{time:YYYY-MM-DD}.log"),
-                format=logfmt,
-                level=loglevel.name,
-                enqueue=True,
-                encoding="utf-8",
-                rotation="00:00",
-                retention=5,
-            )
+        if debug:
+            logfmt = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[logtype]: <12} | {name}:{function}:{line} - {message}"
+        else:
+            logfmt = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[logtype]: <12} | {message}"
+        logger.add(
+            cfg.instance / (__package__ + "-{time:YYYY-MM-DD}.log"),
+            format=logfmt,
+            level=loglevel.name,
+            enqueue=True,
+            encoding="utf-8",
+            rotation="00:00",
+            retention=5,
+        )
 
         # webservice
         app = make_app(cfg, debug=debug)
@@ -110,8 +107,8 @@ def main(loglevel: str, cfg_file: Path):
             port=cfg.server.port,
             log_config=dict(version=1, disable_existing_loggers=False),
             log_level="debug",  # log everything, then let loguru handle the filtering
-            ssl_keyfile=cfg.server.ssl_key,
-            ssl_certfile=cfg.server.ssl_cert,
+            ssl_keyfile=cfg.instance / cfg.server.ssl_key,
+            ssl_certfile=cfg.instance / cfg.server.ssl_cert,
         )
 
         logger.success("Complete")

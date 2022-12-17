@@ -1,12 +1,6 @@
-"""Webservice
-"""
-
-__author__ = "Rogier Steehouder"
-__date__ = "2022-11-20"
-__version__ = "1.1"
-
 import datetime
 import uuid
+from pathlib import Path
 
 import jsonpatch
 from loguru import logger
@@ -14,8 +8,9 @@ from starlette import status
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+from starlette.routing import Route
 
-from . import config, database
+from . import __version__, database
 
 
 class Params:
@@ -39,15 +34,69 @@ class Params:
 
 
 class Webservice:
-    def __init__(self, cfg: config.Config):
+    def __init__(self, database_path: Path):
         self._logger = logger.bind(logtype="pakhuis.webservice")
-        self.cfg = cfg
-        self.db = database.Database(cfg.database.path)
+        self.db = database.Database(database_path)
+        self.routes = [
+            Route("/", self.root, methods=["GET"], name="root"),
+            Route("/_ping", self.ping, methods=["GET", "HEAD"], name="ping"),
+            Route("/_cleanup", self.cleanup, methods=["GET"], name="cleanup"),
+            Route("/_sync", self.sync_list, methods=["GET"], name="sync"),
+            Route("/{_bin}", self.bin, methods=["GET"], name="bin"),
+            Route("/{_bin}", self.delete_bin, methods=["DELETE"]),
+            Route("/{_bin}", self.doc, methods=["POST"], name="post_doc"),
+            Route(
+                "/{_bin}/_cleanup", self.cleanup, methods=["GET"], name="bin_cleanup"
+            ),
+            Route(
+                "/{_bin}/_config",
+                self.bin_config,
+                methods=["GET", "PUT"],
+                name="bin_config",
+            ),
+            Route(
+                "/{_bin}/_index",
+                self.bin_index,
+                methods=["GET", "PUT"],
+                name="bin_index",
+            ),
+            Route(
+                "/{_bin}/_index/values",
+                self.bin_index_values,
+                methods=["GET"],
+                name="bin_values",
+            ),
+            Route(
+                "/{_bin}/_search",
+                self.bin_search,
+                methods=["GET", "POST"],
+                name="bin_search",
+            ),
+            Route("/{_bin}/_sync", self.sync_list, methods=["GET"], name="bin_sync"),
+            Route(
+                "/{_bin}/{_id}", self.doc, methods=["GET", "PUT", "PATCH"], name="doc"
+            ),
+            Route("/{_bin}/{_id}", self.delete_doc, methods=["DELETE"]),
+            Route(
+                "/{_bin}/{_id}/_meta", self.doc_meta, methods=["GET"], name="doc_meta"
+            ),
+            Route(
+                "/{_bin}/{_id}/_history",
+                self.doc_history,
+                methods=["GET"],
+                name="doc_history",
+            ),
+        ]
 
     async def ping(self, request: Request):
         result = "{}.{}".format(*self.db.version())
         return JSONResponse(
-            {"pakhuis": __version__, "db": result, "user": request.user.display_name},
+            {
+                "app": "Pakhuis",
+                "version": __version__,
+                "db": result,
+                "user": request.user.display_name,
+            },
             status_code=status.HTTP_200_OK,
         )
 
@@ -88,7 +137,7 @@ class Webservice:
     async def bin_index_values(self, request: Request):
         p = Params(request)
         key = p.q("key")
-        result = self.db.get_index_values(bin, key)
+        result = self.db.get_index_values(p.bin, key)
         return JSONResponse(result, status_code=status.HTTP_200_OK)
 
     async def bin_search(self, request: Request):
@@ -104,7 +153,9 @@ class Webservice:
         try:
             result = self.db.search_items(p.bin, srch)
         except KeyError as exc:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a search key: {}".format(exc.args[0]))
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "Not a search key: {}".format(exc.args[0])
+            )
         return JSONResponse(result, status_code=status.HTTP_200_OK)
 
     async def doc(self, request: Request):
@@ -127,16 +178,24 @@ class Webservice:
             patch = await p.json()
             content = self.db.get_item(p.bin, p.id)
             if content is database.NOTFOUND:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin))
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND,
+                    "Item {} not found in {}".format(p.id, p.bin),
+                )
             jsonpatch.apply_patch(content, patch, in_place=True)
             self.db.set_item(p.bin, p.id, content)
 
         # show
         result = self.db.get_item(p.bin, p.id)
         if (p.put or p.post) and result is database.NOTFOUND:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Storing {} in {} failed".format(p.id, p.bin))
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "Storing {} in {} failed".format(p.id, p.bin),
+            )
         elif result is database.NOTFOUND:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin))
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin)
+            )
 
         if p.put or p.post:
             result = {"id": p.id, "content": result}
@@ -146,7 +205,9 @@ class Webservice:
         p = Params(request)
         content = self.db.get_item(p.bin, p.id)
         if content is database.NOTFOUND:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin))
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin)
+            )
         self.db.del_item(p.bin, p.id)
         return Response(None, status_code=status.HTTP_204_NO_CONTENT)
 
@@ -159,14 +220,18 @@ class Webservice:
         p = Params(request)
         result = self.db.get_item_history(p.bin, p.id)
         if result is database.NOTFOUND:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin))
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin)
+            )
         return JSONResponse(result, status_code=status.HTTP_200_OK)
 
     async def doc_meta(self, request: Request):
         p = Params(request)
         result = self.db.get_item_meta(p.bin, p.id)
         if result is database.NOTFOUND:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin))
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "Item {} not found in {}".format(p.id, p.bin)
+            )
         return JSONResponse(result, status_code=status.HTTP_200_OK)
 
     async def sync_list(self, request: Request):

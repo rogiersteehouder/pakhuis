@@ -1,10 +1,13 @@
+# Pakhuis
 click
-uvicorn
-loguru
-starlette
-passlib
-pydantic
-jsonpointer
+httpx
 jsonpatch
+jsonpointer
+loguru
+pydantic
+starlette
+uvicorn
+# Poorthuis
+passlib
 # for python < 3.11
-tomli
+#tomli

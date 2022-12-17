@@ -1,12 +1,3 @@
-"""Database interface
-
-Also does much of the heavy lifting for the webservice.
-"""
-
-__author__ = "Rogier Steehouder"
-__date__ = "2022-11-28"
-__version__ = "1.1"
-
 import datetime
 import json
 import hashlib
@@ -242,9 +233,11 @@ class Database:
             self._logger.debug("Get config for {}", _bin)
             with sqlite3.connect(self.path) as conn:
                 include_id = False
-                for row in conn.execute("""select INCLUDE_ID from BIN_CONFIG where BIN = ?""", (_bin,)):
-                    include_id = (row[0] == "Y")
-            self.bin_cfg[_bin] = { "include_id": include_id }
+                for row in conn.execute(
+                    """select INCLUDE_ID from BIN_CONFIG where BIN = ?""", (_bin,)
+                ):
+                    include_id = row[0] == "Y"
+            self.bin_cfg[_bin] = {"include_id": include_id}
         return self.bin_cfg[_bin]
 
     def set_index(self, _bin: str, index: dict):
@@ -275,7 +268,8 @@ class Database:
         result = []
         with sqlite3.connect(self.path) as conn:
             for row in conn.execute(
-                """select distinct VALUE from SEARCH_VALUES where BIN = ? and KEY = ? order by VALUE asc""", (_bin, key)
+                """select distinct VALUE from SEARCH_VALUES where BIN = ? and KEY = ? order by VALUE asc""",
+                (_bin, key),
             ):
                 result.append(json.loads(row[0]))
         return result
@@ -289,18 +283,20 @@ class Database:
             ):
                 self._set_index_item(conn, _bin, row[0], json.loads(row[1]))
 
-    def set_item(self, _bin: str, _id: str, content: Any, dttm: datetime.datetime = None):
-        self._logger.debug("Set item {} in {}", _id, _bin)
+    def set_item(
+        self, _bin: str, _id: str, content: Any, dttm: datetime.datetime = None
+    ):
+        self._logger.debug("Set item {} in {} with stamp {}", _id, _bin, dttm)
         with sqlite3.connect(self.path) as conn:
-            if dttm is None:
-                conn.execute(
-                    """insert into PAKHUIS (BIN, ID, CONTENT) values (?, ?, ?)""",
-                    (_bin, _id, json.dumps(content)),
-                )
-            else:
+            if dttm:
                 conn.execute(
                     """insert into PAKHUIS (BIN, ID, DTTM, CONTENT) values (?, ?, ?, ?)""",
                     (_bin, _id, dttm, json.dumps(content)),
+                )
+            else:
+                conn.execute(
+                    """insert into PAKHUIS (BIN, ID, CONTENT) values (?, ?, ?)""",
+                    (_bin, _id, json.dumps(content)),
                 )
             self._set_index_item(conn, _bin, _id, content)
 
@@ -313,7 +309,7 @@ class Database:
                 (_bin,),
             ):
                 content = json.loads(row[1])
-                if self.get_bin_config(_bin)['include_id']:
+                if self.get_bin_config(_bin)["include_id"]:
                     content["id"] = row[0]
                 result["items"][row[0]] = content
         result["count"] = len(result["items"])
@@ -327,7 +323,7 @@ class Database:
                 (_bin, _id),
             ):
                 content = json.loads(row[0])
-                if self.get_bin_config(_bin)['include_id']:
+                if self.get_bin_config(_bin)["include_id"]:
                     content["id"] = _id
                 return content
         return NOTFOUND
@@ -379,7 +375,7 @@ class Database:
                 params,
             ):
                 content = json.loads(row[1])
-                if self.get_bin_config(_bin)['include_id']:
+                if self.get_bin_config(_bin)["include_id"]:
                     content["id"] = row[0]
                 result["items"][row[0]] = content
         result["count"] = len(result["items"])
@@ -412,13 +408,18 @@ class Database:
             params = []
         result = {}
         with sqlite3.connect(self.path) as conn:
-            for row in conn.execute(f"""select P.BIN, P.ID, P.DTTM, P.STATUS from PAKHUIS P where {where} P.DTTM = (select max(DTTM) from PAKHUIS where BIN = P.BIN and ID = P.ID) order by 1, 2""", params):
+            for row in conn.execute(
+                f"""select P.BIN, P.ID, P.DTTM, P.STATUS from PAKHUIS P where {where} P.DTTM = (select max(DTTM) from PAKHUIS where BIN = P.BIN and ID = P.ID) order by 1, 2""",
+                params,
+            ):
                 bin_obj = result.setdefault(row[0], dict())
-                bin_obj[row[1]] = { "dttm": row[2], "active": (row[3] == 'A') }
+                bin_obj[row[1]] = {"dttm": row[2], "active": (row[3] == "A")}
         return result
 
     def cleanup(self, _bin: str, dt: datetime.date) -> dict:
-        self._logger.debug("Cleanup items in {} before {:%Y-%m-%d}", _bin if _bin else "all", dt)
+        self._logger.debug(
+            "Cleanup items in {} before {:%Y-%m-%d}", _bin if _bin else "all", dt
+        )
         if _bin:
             where = "P.BIN = ? and"
             params = [_bin]
@@ -428,11 +429,19 @@ class Database:
         result = []
         with sqlite3.connect(self.path) as conn:
             # add items older than given date
-            for row in conn.execute(f"""select P.BIN, P.ID, P.DTTM from PAKHUIS P where {where} P.DTTM < ?""", params + [dt]):
+            for row in conn.execute(
+                f"""select P.BIN, P.ID, P.DTTM from PAKHUIS P where {where} P.DTTM < ?""",
+                params + [dt],
+            ):
                 result.append(list(row))
             # remove items that are still active
-            for row in conn.execute(f"""select P.BIN, P.ID, P.DTTM from PAKHUIS P where {where} P.DTTM = (select max(DTTM) from PAKHUIS where BIN = P.BIN and ID = P.ID) and DTTM < ? and STATUS = 'A'""", params + [dt]):
+            for row in conn.execute(
+                f"""select P.BIN, P.ID, P.DTTM from PAKHUIS P where {where} P.DTTM = (select max(DTTM) from PAKHUIS where BIN = P.BIN and ID = P.ID) and DTTM < ? and STATUS = 'A'""",
+                params + [dt],
+            ):
                 result.remove(list(row))
             # delete items
-            conn.executemany("""delete from PAKHUIS where BIN = ? and ID = ? and DTTM = ?""", result)
-            return { "count": len(result), "items": result }
+            conn.executemany(
+                """delete from PAKHUIS where BIN = ? and ID = ? and DTTM = ?""", result
+            )
+            return {"count": len(result), "items": result}

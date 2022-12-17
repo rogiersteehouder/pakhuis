@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# encoding: UTF-8
-
 """Pakhuis sync
 
 Synchronizes documents on two pakhuis services. Sync by date/time only, no compare of content.
@@ -11,8 +8,8 @@ It will create an index definition if the whole bin is copied.
 """
 
 __author__ = "Rogier Steehouder"
-__date__ = "2022-12-06"
-__version__ = "0.2"
+__date__ = "2022-12-16"
+__version__ = "1.0"
 
 import sys
 import getpass
@@ -28,8 +25,11 @@ except ImportError:
     import tomli as tomllib
 
 
-def raise_for_status(response):
+def raise_for_status(response: httpx.Response):
     """Error for 4xx and 5xx status codes"""
+    if response.status_code == 401:
+        logger.error("Authorization failed")
+        sys.exit(1)
     response.raise_for_status()
 
 
@@ -38,12 +38,17 @@ class ServerSync:
         self.cfg = cfg
         self.cli = cli
 
+        self.pwmgr = False
+
+    def __enter__(self) -> "ServerSync":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        return False
+
     def run(self):
         first = self.cfg["servers"]["first"]
         second = self.cfg["servers"]["second"]
-
-        first["url"] = first["url"].strip("/")
-        second["url"] = second["url"].strip("/")
 
         first_content = self.cli.get(
             f"{first['url']}/_sync", auth=(first["username"], first["password"])
@@ -54,6 +59,9 @@ class ServerSync:
 
         first_bins = set(first_content.keys())
         second_bins = set(second_content.keys())
+
+        if "pwmgr" in first_bins | second_bins:
+            self.pwmgr = True
 
         # copy missing bins in total
         for _bin in first_bins - second_bins:
@@ -170,37 +178,12 @@ class ServerSync:
         )
 
 
-def pwmgr_refresh(cfg, cli):
-    logger.info("Refreshing the pwmgr list.")
-    accounts = cli.get(
-        f"{cfg['url']}/pwmgr",
-        params={"full": True},
-        auth=(cfg["username"], cfg["password"]),
-    ).json()
-    acc_list = {}
-    old_list = None
-    for _id, content in accounts["items"].items():
-        if _id == "list":
-            old_list = content
-            continue
-        acc_list[_id] = {
-            "descr": "{service} ({username})".format_map(content),
-            "descrshort": content["service"],
-        }
-    if old_list != acc_list:
-        cli.put(
-            f"{cfg['url']}/pwmgr/list",
-            json=acc_list,
-            auth=(cfg["username"], cfg["password"]),
-        )
-
-
 # Click documentation: https://click.palletsprojects.com/
 @click.command()
 @click.option(
     "--loglevel",
     type=click.Choice(logger._core.levels.keys(), case_sensitive=False),
-    default="warning",
+    default="info",
     help="""Log level""",
 )
 @click.option(
@@ -213,14 +196,14 @@ def pwmgr_refresh(cfg, cli):
         readable=True,
         path_type=pathlib.Path,
     ),
-    default=pathlib.Path(__file__).with_suffix(".toml"),
+    default=pathlib.Path("pakhuis-sync.toml"),
     help="""Config file""",
 )
 @click.option(
-    "--list", "pwmgr_list", is_flag=True, default=False, help="""Only refresh pwmgr list"""
-)
-@click.option(
-    "--cleanup", is_flag=True, default=False, help="""Send cleanup command to both servers"""
+    "--cleanup",
+    is_flag=True,
+    default=False,
+    help="""Send cleanup command to both servers""",
 )
 def main(cfg_file, loglevel, pwmgr_list, cleanup):
     # loguru documentation: https://loguru.readthedocs.io/
@@ -237,7 +220,9 @@ def main(cfg_file, loglevel, pwmgr_list, cleanup):
         ### config file
         cfg = tomllib.loads(cfg_file.read_text())
         first = cfg["servers"]["first"]
+        first["url"] = first["url"].strip("/")
         second = cfg["servers"]["second"]
+        second["url"] = second["url"].strip("/")
 
         ### http requests
         if "username" not in first:
@@ -262,11 +247,10 @@ def main(cfg_file, loglevel, pwmgr_list, cleanup):
             event_hooks={"response": [raise_for_status]},
         ) as cli:
 
-            if not pwmgr_list:
-                s = ServerSync(cfg, cli)
+            with ServerSync(cfg, cli) as s:
                 s.run()
-
-            pwmgr_refresh(first, cli)
+                if s.pwmgr:
+                    pwmgr_list = True
 
             if cleanup:
                 for srv in (cfg["servers"]["first"], cfg["servers"]["second"]):

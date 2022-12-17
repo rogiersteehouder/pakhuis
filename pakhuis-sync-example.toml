@@ -1,3 +1,5 @@
+# Example - copy to "pakhuis-sync.toml"
+
 # Sync between two servers. It doesn't matter which one is first or second.
 
 [servers.first]
