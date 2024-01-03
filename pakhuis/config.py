@@ -13,6 +13,7 @@ except ImportError:
 
 class ServerConfig(pydantic.BaseModel):
     """Server config"""
+
     host: str = "localhost"
     port: int = 8001
     ssl_key: Optional[Path] = None
@@ -22,6 +23,7 @@ class ServerConfig(pydantic.BaseModel):
 class PoorthuisConfig(pydantic.BaseModel):
     """Poorthuis config"""
 
+    allow_local: bool = False
     accounts: dict = pydantic.Field(default_factory=dict)
 
 
@@ -33,6 +35,7 @@ class PakhuisConfig(pydantic.BaseModel):
 
 class Config(pydantic.BaseModel):
     """Main config"""
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

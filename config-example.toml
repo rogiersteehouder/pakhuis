@@ -4,16 +4,19 @@
 # host and port
 host = "localhost"
 port = 8001
-# ssl certificate files, omit for regular http
+# ssl/tls key and certificate files (omit for regular http)
 #ssl_key = "server.key"
 #ssl_cert = "server.pem"
 
-[pakhuis]
-# sqlite database file
-database = "pakhuis.db"
-
 # Poorthuis: authentication
 [poorthuis.accounts]
+# allow unauthenticated local connections (from 127.0.0.1)
+allow_local = false
 # http basic authentication: username, followed by password hash
 # generate hash using: python -m poorthuis
-test = "$pbkdf2-sha256$29000$ZkyJcY7xvre2lnJuLSXkvA$boHia0Vck4Z4/hjy4x9QE7lZikv1dHxkD/8B5GMa7p0"
+test = "$pbkdf2-sha256$29000$41xrTanV2tv7/9/7H4Nwjg$w7wFSuQUobO6cqr8/GVU4OecTCXICIG1lEb0OtnzpHI"
+
+# Pakhuis: json storage
+[pakhuis]
+# database file
+database = "pakhuis.db"

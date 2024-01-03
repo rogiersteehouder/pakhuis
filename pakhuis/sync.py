@@ -34,8 +34,7 @@ def raise_for_status(response: httpx.Response):
 
 
 class ServerSync:
-    def __init__(self, cfg, cli):
-        self.cfg = cfg
+    def __init__(self, cli):
         self.cli = cli
 
         self.pwmgr = False
@@ -46,10 +45,7 @@ class ServerSync:
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         return False
 
-    def run(self):
-        first = self.cfg["servers"]["first"]
-        second = self.cfg["servers"]["second"]
-
+    def run(self, first, second):
         first_content = self.cli.get(
             f"{first['url']}/_sync", auth=(first["username"], first["password"])
         ).json()
@@ -196,8 +192,17 @@ class ServerSync:
         readable=True,
         path_type=pathlib.Path,
     ),
-    default=pathlib.Path("pakhuis-sync.toml"),
+    default=pathlib.Path("pakhuis-servers.toml"),
     help="""Config file""",
+)
+@click.option("-1", "s1", help="Server 1 (as defined in config)")
+@click.option("-2", "s2", help="Server 2 (as defined in config)")
+@click.option(
+    "--list",
+    "pwmgr_list",
+    is_flag=True,
+    default=False,
+    help="""Only refresh pwmgr list""",
 )
 @click.option(
     "--cleanup",
@@ -205,7 +210,7 @@ class ServerSync:
     default=False,
     help="""Send cleanup command to both servers""",
 )
-def main(cfg_file, loglevel, pwmgr_list, cleanup):
+def main(cfg_file, loglevel, s1, s2, pwmgr_list, cleanup):
     # loguru documentation: https://loguru.readthedocs.io/
     logger.remove()
     logger.add(
@@ -219,25 +224,33 @@ def main(cfg_file, loglevel, pwmgr_list, cleanup):
 
         ### config file
         cfg = tomllib.loads(cfg_file.read_text())
-        first = cfg["servers"]["first"]
+
+        if s1 is None:
+            s1 = cfg["default-1"]
+        first = cfg["servers"][s1]
         first["url"] = first["url"].strip("/")
-        second = cfg["servers"]["second"]
+        first["name"] = s1
+
+        if s2 is None:
+            s2 = cfg["default-2"]
+        second = cfg["servers"][s2]
         second["url"] = second["url"].strip("/")
+        second["name"] = s2
 
         ### http requests
         if "username" not in first:
-            first["username"] = input("[{}] Username: ".format(first["name"]))
+            first["username"] = input("[{}] Username: ".format(s1))
         if "password" not in first:
             first["password"] = getpass.getpass(
-                "[{}@{}] Password: ".format(first["username"], first["name"])
+                "[{}@{}] Password: ".format(first["username"], s1)
             )
 
         if not pwmgr_list:
             if "username" not in second:
-                second["username"] = input("[{}] Username: ".format(second["name"]))
+                second["username"] = input("[{}] Username: ".format(s2))
             if "password" not in second:
                 second["password"] = getpass.getpass(
-                    "[{}@{}] Password: ".format(second["username"], second["name"])
+                    "[{}@{}] Password: ".format(second["username"], s2)
                 )
 
         # httpx documentation: https://www.python-httpx.org/

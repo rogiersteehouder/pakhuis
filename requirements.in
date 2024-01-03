@@ -9,5 +9,8 @@ starlette
 uvicorn
 # Poorthuis
 passlib
-# for python < 3.11
-#tomli
+
+# tomllib in standard library since 3.11
+tomli ; python_version < '3.11'
+# loguru dependency for win32, specify it myself for pip-compile
+win32-setctime ; sys_platform == 'win32'

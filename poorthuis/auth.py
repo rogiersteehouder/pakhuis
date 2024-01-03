@@ -41,12 +41,15 @@ class BasicAuthBackend(AuthenticationBackend):
 
     context = crypt_context
 
-    def __init__(self, accounts: Callable[[str], str] = None):
+    def __init__(self, accounts: Callable[[str], str] = None, allow_local: bool = False):
         self.logger = logger.bind(logtype="poorthuis")
         self.accounts = accounts
+        self.allow_local = allow_local
 
     async def authenticate(self, conn):
         """Password middleware for Starlette"""
+        if self.allow_local and conn.client and conn.client.host == "127.0.0.1":
+            return AuthCredentials(["authenticated"]), SimpleUser("local")
         if "Authorization" not in conn.headers:
             raise AuthenticationError("Basic Authorization required")
 

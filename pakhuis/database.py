@@ -15,6 +15,7 @@ class NOTFOUND:
 
 class SearchWhere:
     """Build the sql criteria from a search object"""
+
     def __init__(self, table_name: str = "SEARCH_VALUES", alias: str = "P."):
         self.table_name = table_name
         self.base_ops = {

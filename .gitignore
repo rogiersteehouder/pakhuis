@@ -31,6 +31,8 @@ __pycache__/
 *.code-workspace
 .history/
 
-# App
+# Project
 instance
-support/pakhuis-sync.toml
+.venv
+*.toml
+!*-example.toml

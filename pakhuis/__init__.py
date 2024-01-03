@@ -45,7 +45,11 @@ def make_app(cfg: Config, debug: bool = False) -> Starlette:
     ### Poorthuis
     middleware = []
     if cfg.poorthuis.accounts:
-        middleware.append(poorthuis.middleware(DictAccounts(cfg.poorthuis.accounts)))
+        middleware.append(
+            poorthuis.middleware(
+                DictAccounts(cfg.poorthuis.accounts), cfg.poorthuis.allow_local
+            )
+        )
 
     ### Server
     app = Starlette(

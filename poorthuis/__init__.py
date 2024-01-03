@@ -13,9 +13,10 @@ from starlette.middleware.authentication import AuthenticationMiddleware
 from .auth import BasicAuthBackend, on_auth_error, crypt_context
 
 
-def middleware(accounts: Callable[[str], str]) -> Middleware:
+def middleware(accounts: Callable[[str], str], allow_local: bool = False) -> Middleware:
     return Middleware(
         AuthenticationMiddleware,
         backend=BasicAuthBackend(accounts),
         on_error=on_auth_error,
+        allow_local=allow_local
     )
