@@ -1,0 +1,13 @@
+# Filenames are relative to the directory containing the config file.
+
+[server]
+# host and port
+host = "0.0.0.0"
+port = 80
+# ssl certificate paths, omit for regular http (ok if you use a reverse proxy)
+ssl_key = "server.key"
+ssl_cert = "server.pem"
+
+[pakhuis]
+# sqlite database file
+database = "pakhuis.db"

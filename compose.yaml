@@ -1,0 +1,22 @@
+services:
+  caddy:
+    image: caddy:2.7-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./instance/caddy/:/etc/caddy
+      - ./instance/log/:/caddy/log
+
+  pakhuis:
+    image: pakhuis:${PAKHUIS_VERSION}
+    build:
+      context: .
+      tags:
+        - pakhuis:latest
+        - pakhuis:${PAKHUIS_VERSION}
+    volumes:
+      - ./instance/pakhuis/:/server/instance/
+      - ./instance/log/:/server/log/

@@ -1,0 +1,21 @@
+# default servers to use if you do not specify on the command line
+default1 = "localhost"
+default2 = "example"
+
+[servers.localhost]
+# optional name to use instead of the server id
+name = "localhost"
+# base url for pakhuis service
+url = "https://localhost/pakhuis/"
+# username for credentials (will ask if omitted)
+username = "test"
+# password for credentials (will ask if omitted)
+password = "Tester"
+
+[servers.example]
+name = "whatever"
+url = "https://example.org/pakhuis/"
+username = "test"
+
+[servers.another]
+url = "https://another.org/pakhuis/"

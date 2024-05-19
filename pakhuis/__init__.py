@@ -1,28 +1,25 @@
-"""Pakhuis
+"""Pakhuis.
 
 A json document storage service with limited search capability.
 """
 
 __author__ = "Rogier Steehouder"
-__date__ = "2022-12-15"
-__version__ = "1.2"
+__date__ = "2024-05-09"
+__version__ = "2.0.1"
 
-from loguru import logger
+from pathlib import Path
+
 from starlette.applications import Starlette
 from starlette import status
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-import poorthuis
-from poorthuis.dict import DictAccounts
-
-from .config import Config
-from . import webservice
+from .webservice import PakhuisService
 
 
 async def json_error(request: Request, exc: HTTPException):
-    """Error handler to show json instead of text"""
+    """Error handler to show json instead of text."""
     detail = getattr(exc, "detail", None)
     if detail is None:
         detail = str(exc)
@@ -36,27 +33,19 @@ async def json_error(request: Request, exc: HTTPException):
     )
 
 
-def make_app(cfg: Config, debug: bool = False) -> Starlette:
+def make_app(
+    database_path: Path = Path("pakhuis.db"),
+    *,
+    debug: bool = False
+) -> Starlette:
+    """Create the Starlette app."""
     # webservice
-    ws = webservice.Webservice(cfg.instance / cfg.pakhuis.database)
-
-    routes = ws.routes
-
-    ### Poorthuis
-    middleware = []
-    if cfg.poorthuis.accounts:
-        middleware.append(
-            poorthuis.middleware(
-                DictAccounts(cfg.poorthuis.accounts), cfg.poorthuis.allow_local
-            )
-        )
+    ws = PakhuisService(database_path)
 
     ### Server
     app = Starlette(
         debug=debug,
-        routes=routes,
-        on_startup=[],
-        middleware=middleware,
+        routes=ws.routes,
         exception_handlers={404: json_error, 500: json_error},
     )
     return app

@@ -1,13 +1,9 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-
 # Backup
 *.bak
 *.ori
 *.orig
 *.tmp
+*~
 
 # Windows
 [Dd]esktop.ini
@@ -31,8 +27,19 @@ __pycache__/
 *.code-workspace
 .history/
 
-# Project
-instance
-.venv
-*.toml
-!*-example.toml
+# git
+commit-message
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+
+# project
+instance/caddy/*
+!instance/caddy/Caddyfile.example
+instance/pakhuis/*
+!instance/pakhuis/config.example.toml
+!instance/pakhuis/pakhuis-servers.example.toml
+instance/log/*

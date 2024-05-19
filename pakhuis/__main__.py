@@ -1,118 +1,120 @@
-"""Pakhuis
+"""Pakhuis.
 
 A json document storage service with limited search capability.
 """
 
-__author__ = "Rogier Steehouder"
-__date__ = "2022-12-15"
-__version__ = "1.2"
-
 import sys
-import logging
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Annotated, Optional
 
-import click
+import typer
 import uvicorn
-from loguru import logger
 
-from . import make_app
-from .config import Config
+from . import __author__, __date__, __version__, make_app
+from .log import logger, LogLevels, init_logger
+from .tomlconfig import ConfigReader
 
-
-class InterceptHandler(logging.Handler):
-    """Redirect everything to loguru"""
-
-    def emit(self, record):
-        try:
-            level = logger.level(record.levelname).name
-        except ValueError:
-            level = record.levelno
-        frame, depth = logging.currentframe(), 2
-        while frame.f_code.co_filename == logging.__file__:
-            frame = frame.f_back
-            depth += 1
-        logger.opt(depth=depth, exception=record.exc_info).bind(
-            logtype=record.name
-        ).log(level, record.getMessage())
+from icecream import ic
 
 
-@click.command()
-@click.option(
-    "--loglevel",
-    type=click.Choice(logger._core.levels.keys(), case_sensitive=False),
-    default="success",
-    help="""Log level""",
-)
-@click.option(
-    "-c",
-    "--cfg",
-    "cfg_file",
-    type=click.Path(exists=True, path_type=Path),
-    default="config.toml",
-    help="""Configuration file""",
-)
-def main(loglevel: str, cfg_file: Path):
-    # logging
-    logger.configure(handlers=[], extra={"logtype": "main"})
-    loglevel = logger.level(loglevel.upper())
-    debug = loglevel.no <= logger.level("DEBUG").no
+#####
+# Config
+#####
 
-    # install handler in stdlib logging to redirect to loguru (see loguru docs)
-    logging.basicConfig(handlers=[InterceptHandler()], level=0)
-    # and redirect uvicorn logging to the default logger
-    logging.getLogger("uvicorn").handlers = []
-    logging.getLogger("uvicorn.access").handlers = []
-    logging.getLogger("uvicorn.access").propagate = True
+@dataclass
+class PakhuisConfig:
+    """Pakhuis config."""
 
-    # console log - only log to console while debugging
-    if debug:
-        logfmt = "<light-black>{time:YYYY-MM-DD HH:mm:ss}</light-black> | <level>{level: <8}</level> | {extra[logtype]: <12} | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - {message}"
-        logger.add(sys.stderr, format=logfmt, level=loglevel.name)
+    database: Path = Path("pakhuis.db")
+
+
+@dataclass
+class ServerConfig:
+    """Server config."""
+
+    host: str = "localhost"
+    port: int = 80
+    ssl_key: Path | None = None
+    ssl_cert: Path | None = None
+
+
+@dataclass
+class MainConfig:
+    """Main program config."""
+
+    pakhuis: PakhuisConfig = field(default_factory=PakhuisConfig)
+    server: ServerConfig = field(default_factory=ServerConfig)
+
+
+
+#####
+# Main application
+#####
+
+
+def main(
+    *,
+    cfg: Annotated[Path, typer.Option(help="Configuration file.")] = Path(
+        "config.toml"
+    ),
+    log_dir: Annotated[Optional[Path], typer.Option(help="Log directory.")] = None,
+    loglevel: Annotated[
+        LogLevels, typer.Option(case_sensitive=False, help="Log level.")
+    ] = "info",
+    version: Annotated[bool, typer.Option(help="Print version and exit.")] = False,
+):
+    """Pakhuis.
+
+    A json document storage service with limited search capability.
+    """
+    if version:
+        print(__version__)
+        return
+
+    instance = cfg.resolve().parent
+    if log_dir is None:
+        log_dir = instance / "log"
+
+    debug = init_logger(loglevel, log_dir)
 
     with logger.catch(onerror=lambda _: sys.exit(1)):
+        logger.info("Start server")
 
-        # config file
-        cfg = Config.parse_file(cfg_file)
+        config = ConfigReader.from_file(MainConfig, cfg)
 
-        # file log
-        if debug:
-            logfmt = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[logtype]: <12} | {name}:{function}:{line} - {message}"
+        app = make_app(instance / config.pakhuis.database, debug=debug)
+
+        if config.server.ssl_key and config.server.ssl_cert:
+            ssl_key = instance / config.server.ssl_key
+            ssl_cert = instance / config.server.ssl_cert
+            ssl = ssl_key.exists() and ssl_cert.exists()
         else:
-            logfmt = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[logtype]: <12} | {message}"
-        logger.add(
-            cfg.instance / (__package__ + "-{time:YYYY-MM-DD}.log"),
-            format=logfmt,
-            level=loglevel.name,
-            enqueue=True,
-            encoding="utf-8",
-            rotation="00:00",
-            retention=5,
-        )
-
-        # webservice
-        app = make_app(cfg, debug=debug)
-
-        protocol = (
-            "https"
-            if (cfg.server.ssl_key is not None and cfg.server.ssl_cert is not None)
-            else "http"
-        )
+            ssl_key = None
+            ssl_cert = None
+            ssl = False
         logger.success(
-            "Serving on {}://{}:{}", protocol, cfg.server.host, cfg.server.port
+            "Serving on {}://{}:{}",
+            "https" if ssl else "http",
+            config.server.host,
+            config.server.port,
         )
 
-        uvicorn.run(
-            app,
-            host=cfg.server.host,
-            port=cfg.server.port,
-            log_config=dict(version=1, disable_existing_loggers=False),
-            log_level="debug",  # log everything, then let loguru handle the filtering
-            ssl_keyfile=cfg.instance / cfg.server.ssl_key,
-            ssl_certfile=cfg.instance / cfg.server.ssl_cert,
-        )
+        try:
+            uvicorn.run(
+                app,
+                host=config.server.host,
+                port=config.server.port,
+                log_config={"version": 1, "disable_existing_loggers": False},
+                log_level="debug",  # log everything, let loguru handle the filtering
+                ssl_keyfile=ssl_key,
+                ssl_certfile=ssl_cert,
+            )
+        except KeyboardInterrupt:
+            pass
 
         logger.success("Complete")
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)
