@@ -440,9 +440,9 @@ class PakhuisDatabase:
         q = self._queries["cleanup"]
         if _bin:
             q = q.replace("1=1", "P.BIN = ?")
-            params = (_bin,)
+            params = (_bin, dt)
         else:
-            params = ()
+            params = (dt,)
 
         result = 0
         with self.connect() as conn:

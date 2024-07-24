@@ -46,6 +46,16 @@ $ docker compose build
 $ docker compose up -d
 ```
 
+And to update:
+
+```bash
+$ docker compose stop
+$ git pull
+$ PAKHUIS_VERSION=$(git describe --tags)
+$ docker compose build
+$ docker compose up -d
+```
+
 ### Installing
 
 Clone the repo (or download it).
