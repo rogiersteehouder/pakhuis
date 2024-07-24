@@ -15,8 +15,6 @@ from . import __author__, __date__, __version__, make_app
 from .log import logger, LogLevels, init_logger
 from .tomlconfig import ConfigReader
 
-from icecream import ic
-
 
 #####
 # Config

@@ -3,7 +3,7 @@ jsonpatch
 jsonpointer
 loguru
 starlette
-typer
+typer-slim
 uvicorn
 
 # loguru dependency for win32, specify it myself for pip-compile

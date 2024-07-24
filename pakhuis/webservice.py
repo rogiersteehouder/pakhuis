@@ -254,6 +254,6 @@ class PakhuisService:
         elif "days" in p.query_params:
             dt = datetime.date.today() - datetime.timedelta(days=int(p.q("days")))
         else:
-            HTTPException(status.HTTP_400_BAD_REQUEST, "Date parameter missing")
-        count = self.db.cleanup(p.bin, dt)
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Date parameter missing")
+        count = self.db.cleanup(p.bin, dt=dt)
         return JSONResponse({"count": count}, status_code=status.HTTP_200_OK)

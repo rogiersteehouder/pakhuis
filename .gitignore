@@ -34,12 +34,10 @@ commit-message
 __pycache__/
 *.py[cod]
 *$py.class
-venv/
+.venv/
 
 # project
-instance/caddy/*
-!instance/caddy/Caddyfile.example
-instance/pakhuis/*
-!instance/pakhuis/config.example.toml
-!instance/pakhuis/pakhuis-servers.example.toml
-instance/log/*
+instance/*
+!instance/Caddyfile.example
+!instance/pakhuis.example.toml
+!instance/pakhuis-servers.example.toml
