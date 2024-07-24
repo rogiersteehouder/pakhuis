@@ -159,7 +159,7 @@ class PakhuisDatabase:
         "get_index_values": """select distinct VALUE from SEARCH_VALUES where BIN = ? and KEY = ? order by VALUE asc""",
         "search_items": """select P.ID, P.CONTENT from PAKHUIS P where P.BIN = ? and P.DTTM = (select max(DTTM) from PAKHUIS where BIN = P.BIN and ID = P.ID) and P.STATUS = 'A' and 1=1 order by 1""",
         "sync_list": """select P.BIN, P.ID, P.DTTM, P.STATUS from PAKHUIS P where 1=1 and P.DTTM = (select max(DTTM) from PAKHUIS where BIN = P.BIN and ID = P.ID) order by 1, 2""",
-        "cleanup": """delete from PAKHUIS P where 1=1 and P.DTTM < ? and (ACTIVE = "N" or exists (select 1 from PAKHUIS where BIN = P.BIN and ID = P.ID and DTTM > P.DTTM))""",
+        "cleanup": """delete from PAKHUIS where 1=1 and DTTM < ? and (STATUS = "I" or exists (select 1 from PAKHUIS P where P.BIN = PAKHUIS.BIN and P.ID = PAKHUIS.ID and P.DTTM > PAKHUIS.DTTM))""",
     }
 
     ### Init
